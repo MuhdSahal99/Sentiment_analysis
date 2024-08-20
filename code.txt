@@ -1,0 +1,52 @@
+Ensure CUDA is Installed:
+
+Make sure that you have CUDA installed on your system. You can check by running the following command in a terminal:
+bash
+Copy code
+nvcc --version
+Ensure you have the correct version of the NVIDIA driver.
+Install PyTorch with CUDA Support:
+
+If you haven't installed PyTorch with CUDA support, install it using the following command:
+bash
+Copy code
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+Replace cu118 with the appropriate CUDA version for your system.
+Modify the Code to Use GPU:
+
+You need to ensure that the pipeline and other PyTorch-related operations run on the GPU. You can modify your code as follows:
+python
+Copy code
+import pandas as pd
+from transformers import pipeline
+import torch
+import time
+
+def translate_text(text, translator, retries=3, delay=10):
+    for i in range(retries):
+        try:
+            if text:
+                if isinstance(text, bytes):
+                    text = text.decode('utf-8', errors='ignore')
+                translation = translator(text, src_lang="arz_Arab", tgt_lang="eng_Latn", max_length=400)
+                return translation[0]['translation_text']
+            else:
+                return ""
+        except Exception as e:
+            print(f"Error translating text: '{text}'. Error: {e}. Retrying ({i+1}/{retries})...")
+            time.sleep(delay)
+    print(f"Failed to translate text: '{text}' after {retries} retries.")
+    return ""
+
+def translate_data(filepath):
+    df = pd.read_csv(filepath, encoding='utf-8')
+    # Specify the device as GPU (if available)
+    device = 0 if torch.cuda.is_available() else -1
+    translator = pipeline(task="translation", model="facebook/nllb-200-distilled-600M", torch_dtype=torch.bfloat16, device=device)
+    df['TRANSLATED_COMMENTS'] = df['OTHER_COMMENTS'].apply(lambda x: translate_text(x, translator))
+    return df
+
+if __name__ == "__main__":
+    filepath = '../data/cleaned_feedback1.csv'
+    df = translate_data(filepath)
+    df.to_csv('../data/translated_feedback1.csv', index=False)
